@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .config import Settings
+from . import features
 from .desks import hunter, news, risk, scanner, whale
 from .desks.chief import Chief, ChiefResult
 from .market import Market
@@ -35,6 +36,7 @@ class Desk:
         self.movers: list[scanner.Mover] = []
         self.watch: list[str] = []
         self.prices: dict[str, float] = {}
+        self.quote_volumes: dict[str, float] = {}
         self.setups: dict[str, tuple[hunter.Setup, float]] = {}
         self.flows: dict[str, whale.WhaleFlow] = {}
         self.sentiment: dict[str, news.Sentiment] = {}
@@ -77,6 +79,7 @@ class Desk:
     async def scan_and_hunt(self) -> None:
         tickers = await self.market.tickers()
         self.prices.update({k: t.last for k, t in tickers.items()})
+        self.quote_volumes.update({k: t.quote_volume for k, t in tickers.items()})
         self.movers = scanner.rank_movers(tickers, self.s.min_quote_volume, self.s.scan_top_n)
         self.watch = scanner.watch_symbols(self.movers, self.s.watchlist, self.s.quote, set(tickers))
         if self.movers:
@@ -134,24 +137,54 @@ class Desk:
                 self.store.note("NEWS", line, f"{base}/{self.s.quote}")
         self.last_run["NEWS"] = time.time()
 
-    def _chief_input(self, candidates: list[hunter.Setup]) -> dict[str, Any]:
+    def _book_facts(self) -> dict[str, Any]:
         book = self.book()
+        opens = []
+        for p in self.store.open_positions():
+            last = self.prices.get(p["symbol"], p["entry"])
+            opens.append({"symbol": p["symbol"], "unrealised_pct": round((last / p["entry"] - 1) * 100, 2)})
+        closed = [
+            {"symbol": c["symbol"], "reason": c["close_reason"],
+             "pnl_pct": round(c["pnl"] / (c["entry"] * c["qty"]) * 100, 2) if c["entry"] * c["qty"] else 0.0}
+            for c in self.store.closed_positions(5)
+        ]
         return {
-            "time_utc": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-            "quote_currency": self.s.quote,
-            "setups": [c.as_dict() for c in candidates],
-            "whale_flow": [
-                {"symbol": f.symbol, "bias": f.bias, "big_buys": f.big_buys, "big_sells": f.big_sells,
-                 "net_value": round(f.net_value), "large_trade_threshold": round(f.threshold)}
-                for sym, f in self.flows.items() if sym in {c.symbol for c in candidates}
-            ],
-            "sentiment": [
-                self.sentiment[c.symbol.split("/")[0]].as_dict()
-                for c in candidates if c.symbol.split("/")[0] in self.sentiment
-            ],
-            "market_movers": [{"symbol": m.symbol, "change_24h_pct": round(m.change_pct, 2)} for m in self.movers[:5]],
-            "book": {"equity": round(book.equity, 2), "open_positions": book.open_symbols},
+            "equity": round(book.equity, 2), "cash": round(book.cash, 2),
+            "day_pnl_pct": round((book.equity / book.day_start_equity - 1) * 100, 2) if book.day_start_equity else 0.0,
+            "open_positions": opens, "recent_closed": closed,
         }
+
+    def _limits(self) -> dict[str, Any]:
+        s = self.s
+        return {"min_reward_risk": s.min_reward_risk, "risk_per_trade_pct": s.risk_per_trade_pct,
+                "max_position_pct": s.max_position_pct, "max_open_positions": s.max_open_positions,
+                "max_daily_loss_pct": s.max_daily_loss_pct, "max_atr_pct": s.max_atr_pct,
+                "min_quote_volume_24h": s.min_quote_volume, "stops": "software-managed, not on the exchange"}
+
+    async def build_round(self, candidates: list[hunter.Setup]) -> dict[str, Any]:
+        btc_sym = f"BTC/{self.s.quote}"
+        btc = {}
+        try:
+            btc = features.btc_context(features.hourly(await self.market.candles(btc_sym, "1h", 200)),
+                                       features.daily(await self.market.candles(btc_sym, "1d", 60)))
+        except Exception as e:
+            log.warning("BTC context unavailable: %s", e)
+        cases = []
+        for st in candidates:
+            h = features.hourly(await self.market.candles(st.symbol, "1h", 200))
+            try:
+                d = features.daily(await self.market.candles(st.symbol, "1d", 60))
+            except Exception:
+                d = {"available": False}
+            base = st.symbol.split("/")[0]
+            flow = self.flows.get(st.symbol)
+            qv = self.quote_volumes.get(st.symbol)
+            snt = self.sentiment.get(base)
+            cases.append(features.case(st.symbol, st.as_dict(), h, d, flow.facts(qv) if flow else None,
+                                       snt.as_dict() if snt else None, qv))
+        now = datetime.now(timezone.utc)
+        return features.round_data(now.isoformat(timespec="minutes"), now.strftime("%A"), self.s.quote,
+                                   btc, self._book_facts(), self._limits(), cases)
 
     async def chief_round(self) -> None:
         if self.paused:
@@ -172,20 +205,22 @@ class Desk:
             self.store.note("RISK", f"book full ({self.s.max_open_positions}) · chief not asked")
             return
         calls_key = f"claude_calls:{utc_day()}"
-        if self.claude_calls_today() >= self.s.claude_max_calls_per_day:
-            self.store.note("CHIEF", "daily Claude call limit reached · waiting for tomorrow", level="warn")
+        if self.claude_calls_today() >= self.s.claude_max_reviews_per_day:
+            self.store.note("CHIEF", "daily review limit reached · waiting for tomorrow", level="warn")
             return
         self.store.set_meta(calls_key, self.claude_calls_today() + 1)
 
         mode = "live" if self.broker.mode == "live" else "paper (simulated money)"
         try:
-            result: ChiefResult = await self.chief.review(self._chief_input(candidates), self.s.min_reward_risk, mode)
+            data = await self.build_round(candidates)
+            result: ChiefResult = await self.chief.review(data, self.s.min_reward_risk, mode)
         except Exception as e:
             self.store.note("CHIEF", f"review failed: {e}", level="warn")
             return
         self.last_run["CHIEF"] = time.time()
         for c in candidates:
             self.reviewed[c.symbol] = (c.kind, now)
+        self._post_reports(result)
         if result.summary:
             self.store.note("CHIEF", result.summary)
 
@@ -199,12 +234,35 @@ class Desk:
                 continue
             await self._propose(st, d)
 
+    def _post_reports(self, result: ChiefResult) -> None:
+        """Each specialist's view goes on the squawk under the desk it works for."""
+        desk_for = {"technical": "HUNT", "orderflow": "WHALE", "sentiment": "NEWS", "risk_officer": "RISK"}
+        for name, by_sym in (result.reports or {}).items():
+            for sym, a in by_sym.items():
+                if a.get("missing") and name == "sentiment":
+                    continue
+                if name == "technical":
+                    text = f"analyst {a.get('stance')} q{a.get('quality')} · {a.get('notes', '')}"
+                elif name == "risk_officer":
+                    text = f"officer {a.get('verdict')} x{a.get('size_multiplier')} · {a.get('concerns', '')}"
+                else:
+                    text = f"analyst {a.get('stance')} · {a.get('read', '')}"
+                level = "warn" if a.get("stance") == "against" or a.get("verdict") == "veto" else "info"
+                self.store.note(desk_for[name], text[:300], sym, level=level)
+
     async def _propose(self, st: hunter.Setup, d) -> None:
         price = self.prices.get(st.symbol, st.price)
         stop = d.stop if 0 < d.stop < price else st.stop
         target = d.target if d.target > price else st.target
         idea = risk.Idea(st.symbol, price, stop, target, st.atr_pct)
         verdict = risk.check(idea, self.book(), self.s, live=self.broker.mode == "live")
+        mult = max(0.0, min(1.0, getattr(d, "size_multiplier", 1.0)))
+        if verdict.ok and mult < 1.0:
+            verdict.qty *= mult
+            verdict.reasons = []
+            if verdict.qty * price < self.s.min_order_value:
+                verdict.ok, verdict.qty = False, 0.0
+                verdict.reasons = ["size too small after risk officer reduction"]
         fields = dict(symbol=st.symbol, setup=st.kind, entry=price, stop=stop, target=target,
                       conviction=d.conviction, thesis=d.thesis, risks=d.risks)
         if not verdict.ok:
@@ -319,8 +377,8 @@ class Desk:
         lines = [
             f"<b>Night Desk</b> [{self.broker.mode.upper()}]{' · PAUSED' if self.paused else ''}",
             f"Equity {eq:,.2f} {esc(self.s.quote)} · today {eq - start:+,.2f}",
-            f"Open positions {len(opens)}/{self.s.max_open_positions} · Claude calls today "
-            f"{self.claude_calls_today()}/{self.s.claude_max_calls_per_day}",
+            f"Open positions {len(opens)}/{self.s.max_open_positions} · Claude reviews today "
+            f"{self.claude_calls_today()}/{self.s.claude_max_reviews_per_day}",
         ]
         for p in opens:
             last = self.prices.get(p["symbol"], p["entry"])
@@ -368,7 +426,7 @@ class Desk:
             "day_start_equity": self.day_start_equity(),
             "cash": self.broker.cash,
             "claude_calls_today": self.claude_calls_today(),
-            "claude_max_calls": self.s.claude_max_calls_per_day,
+            "claude_max_calls": self.s.claude_max_reviews_per_day,
             "news_enabled": bool(self.s.lunarcrush_api_key),
             "telegram_enabled": self.tg.enabled,
             "desks": self.store.latest_note_per_desk(),

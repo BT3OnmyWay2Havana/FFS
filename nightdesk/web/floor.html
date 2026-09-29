@@ -146,7 +146,7 @@ h1 span { color: var(--lamp); }
     <div class="kpis">
       <div class="kpi"><small>Equity</small><b id="kEquity">–</b></div>
       <div class="kpi"><small>Today</small><b id="kToday">–</b></div>
-      <div class="kpi"><small>Claude calls</small><b id="kCalls">–</b></div>
+      <div class="kpi"><small>Claude reviews</small><b id="kCalls">–</b></div>
     </div>
     <button class="ctl" id="pauseBtn" type="button">Pause desk</button>
   </header>
@@ -197,10 +197,10 @@ h1 span { color: var(--lamp); }
 "use strict";
 const DESKS = [
   { id: "SCAN",  name: "Scanner",  role: "watches every chart", shirt: "#5aa9e6", hair: "#2b1d14" },
-  { id: "HUNT",  name: "Hunter",   role: "finds setups",        shirt: "#6fcf8e", hair: "#6b3f1f" },
-  { id: "WHALE", name: "Whale",    role: "big trades",          shirt: "#b48cf2", hair: "#1a1a1a" },
-  { id: "NEWS",  name: "News",     role: "social sentiment",    shirt: "#f29e6d", hair: "#c9a26b" },
-  { id: "RISK",  name: "Risk",     role: "only says no",        shirt: "#ef6f5e", hair: "#3d2a1e" },
+  { id: "HUNT",  name: "Hunter",   role: "setups + technical analyst",        shirt: "#6fcf8e", hair: "#6b3f1f" },
+  { id: "WHALE", name: "Whale",    role: "order-flow analyst",          shirt: "#b48cf2", hair: "#1a1a1a" },
+  { id: "NEWS",  name: "News",     role: "sentiment analyst",    shirt: "#f29e6d", hair: "#c9a26b" },
+  { id: "RISK",  name: "Risk",     role: "limits + risk officer",        shirt: "#ef6f5e", hair: "#3d2a1e" },
   { id: "CHIEF", name: "Chief",    role: "Claude, routes notes",shirt: "#f2b64a", hair: "#efe6d6" },
   { id: "PM",    name: "You",      role: "yes or no",           shirt: "#efe6d6", hair: "#4a3526" },
 ];

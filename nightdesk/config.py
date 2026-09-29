@@ -61,7 +61,7 @@ class Settings:
     anthropic_api_key: str = ""
     claude_model: str = "claude-opus-5-5"
     claude_effort: str = "medium"
-    claude_max_calls_per_day: int = 48
+    claude_max_reviews_per_day: int = 24
 
     # Telegram
     telegram_bot_token: str = ""
@@ -152,7 +152,7 @@ def from_env() -> Settings:
         anthropic_api_key=_str("ANTHROPIC_API_KEY"),
         claude_model=_str("CLAUDE_MODEL", "claude-opus-5-5"),
         claude_effort=_str("CLAUDE_EFFORT", "medium").lower(),
-        claude_max_calls_per_day=_int("CLAUDE_MAX_CALLS_PER_DAY", 48),
+        claude_max_reviews_per_day=_int("CLAUDE_MAX_REVIEWS_PER_DAY", 24),
         telegram_bot_token=_str("TELEGRAM_BOT_TOKEN"),
         telegram_chat_id=_str("TELEGRAM_CHAT_ID"),
         lunarcrush_api_key=_str("LUNARCRUSH_API_KEY"),

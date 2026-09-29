@@ -9,10 +9,11 @@ import sys
 
 import uvicorn
 
-from . import config
+from . import config, gate
 from .brokers.paper import PaperBroker
 from .desk import Desk
-from .desks.chief import ClaudeChief, RuleChief
+from .desks.chief import RuleChief
+from .desks.panel import ClaudePanel
 from .market import ExchangeMarket, SimMarket
 from .store import Store
 from .telegram import Telegram
@@ -44,7 +45,12 @@ async def main() -> int:
 
     store = Store(s.db_path)
     market = SimMarket(s.quote) if s.demo else ExchangeMarket(s.exchange_id, s.quote)
-    chief = ClaudeChief(s.anthropic_api_key, s.claude_model, s.claude_effort) if s.anthropic_api_key and not s.demo else RuleChief()
+    ok, why = gate.check(s)
+    if not ok:
+        print(f"Deployment gate: {why}", file=sys.stderr)
+        return 3
+    log.info("Deployment gate: %s", why)
+    chief = RuleChief() if s.demo else ClaudePanel(s.anthropic_api_key, s.claude_model, s.claude_effort)
 
     if s.live_enabled:
         from .brokers.live import LiveBroker

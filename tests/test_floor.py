@@ -38,7 +38,8 @@ class YesChief:
     async def review(self, data, min_rr, mode):
         self.calls += 1
         return ChiefResult("test summary", [
-            Decision(s["symbol"], "propose", 4, s["stop"], s["target"], "thesis", "risk") for s in data["setups"]
+            Decision(s["symbol"], "propose", 4, s["setup"]["stop"], s["setup"]["target"], "thesis", "risk")
+            for s in data["setups"]
         ])
 
 
@@ -100,7 +101,7 @@ def test_same_setup_not_reviewed_twice(run):
 
 
 def test_claude_budget_respected(run):
-    desk, market, tg, chief = make_desk(claude_max_calls_per_day=0)
+    desk, market, tg, chief = make_desk(claude_max_reviews_per_day=0)
     plant_setup(desk, market)
     run(desk.chief_round())
     assert chief.calls == 0

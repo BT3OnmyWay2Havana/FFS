@@ -20,10 +20,28 @@ class WhaleFlow:
     big_buy_value: float
     big_sell_value: float
     threshold: float
+    window_minutes: float = 0.0
+    price_change_pct: float = 0.0  # first to last trade in the sample
+    total_value: float = 0.0  # all trades in the sample
 
     @property
     def net_value(self) -> float:
         return self.big_buy_value - self.big_sell_value
+
+    def facts(self, quote_volume_24h: float | None = None) -> dict:
+        """What the order-flow analyst reads."""
+        big = self.big_buy_value + self.big_sell_value
+        return {
+            "bias": self.bias,
+            "big_buys": self.big_buys, "big_sells": self.big_sells,
+            "big_buy_value": round(self.big_buy_value), "big_sell_value": round(self.big_sell_value),
+            "net_value": round(self.net_value),
+            "large_trade_threshold": round(self.threshold),
+            "large_share_of_sample_pct": round(big / self.total_value * 100, 1) if self.total_value else 0.0,
+            "large_value_vs_24h_volume_pct": round(big / quote_volume_24h * 100, 3) if quote_volume_24h else None,
+            "sample_window_minutes": round(self.window_minutes, 1),
+            "price_change_over_window_pct": round(self.price_change_pct, 3),
+        }
 
     @property
     def bias(self) -> str:
@@ -48,6 +66,11 @@ def analyse(symbol: str, trades: list[Trade], min_value: float, seen: set[str]) 
     values = [t.value for t in trades]
     threshold = max(min_value, percentile(values, 0.99))
     flow = WhaleFlow(symbol, 0, 0, 0.0, 0.0, threshold)
+    if trades:
+        ordered = sorted(trades, key=lambda t: t.ts)
+        flow.window_minutes = (ordered[-1].ts - ordered[0].ts) / 60_000
+        flow.price_change_pct = (ordered[-1].price / ordered[0].price - 1) * 100 if ordered[0].price else 0.0
+        flow.total_value = sum(values)
     fresh: list[Trade] = []
     for t in trades:
         if t.value < threshold:

@@ -1,13 +1,11 @@
-"""Chief of staff: Claude reads every desk's notes and decides which setups deserve your yes or no."""
+"""Chief of staff types and parsing. The Claude-backed chief lives in panel.py; RuleChief is the offline demo stand-in."""
 
 from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
-
-import anthropic
 
 log = logging.getLogger(__name__)
 
@@ -37,29 +35,6 @@ DECISION_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
-INSTRUCTIONS = """You are the chief of staff on a small crypto spot trading desk. Automated desks have
-already done the legwork: the hunter found rule-based long setups on hourly candles, the whale desk
-summarised unusually large exchange trades, and the news desk (if present) added social sentiment.
-
-Your job is to decide, for each setup listed, whether it is worth interrupting the owner for a yes
-or no. Most setups should be passed. Propose only when the setup, the large-trade flow and the
-sentiment (if any) point the same way, and say plainly what would make the trade wrong.
-
-Rules:
-- Only use symbols from the setups list. Return exactly one decision per setup.
-- Long only, spot only. The stop must be below the current price and the target above it.
-- You may tighten the suggested stop or move the target, but keep reward/risk at or above {min_rr}.
-- conviction is an integer from 1 (weak) to 5 (strong). Propose only at 3 or above.
-- thesis: two sentences at most, plain English. risks: one sentence.
-- desk_summary: one or two sentences on the overall picture for the squawk feed.
-- A separate risk desk will still check position size, volatility and loss limits after you.
-- This is a {mode} account. Never claim a trade is safe or certain.
-
-Desk data (JSON):
-{data}
-"""
-
-
 @dataclass
 class Decision:
     symbol: str
@@ -69,12 +44,14 @@ class Decision:
     target: float
     thesis: str
     risks: str
+    size_multiplier: float = 1.0
 
 
 @dataclass
 class ChiefResult:
     summary: str
     decisions: list[Decision]
+    reports: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
 
 
 class Chief(Protocol):
@@ -101,46 +78,18 @@ def parse_result(raw: str, allowed_symbols: set[str]) -> ChiefResult:
     return ChiefResult(str(obj.get("desk_summary", ""))[:400], decisions)
 
 
-class ClaudeChief:
-    def __init__(self, api_key: str, model: str, effort: str):
-        self.client = anthropic.AsyncAnthropic(api_key=api_key, max_retries=3, timeout=180.0)
-        self.model = model
-        self.effort = effort
-
-    async def review(self, data: dict[str, Any], min_rr: float, mode: str) -> ChiefResult:
-        prompt = INSTRUCTIONS.format(min_rr=min_rr, mode=mode, data=json.dumps(data, indent=1, default=str))
-        response = await self.client.beta.messages.create(
-            model=self.model,
-            max_tokens=16000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            output_config={
-                "effort": self.effort,
-                "format": {"type": "json_schema", "schema": DECISION_SCHEMA},
-            },
-            messages=[{"role": "user", "content": prompt}],
-        )
-        if response.stop_reason == "refusal":
-            raise RuntimeError("Claude declined this review")
-        if response.stop_reason == "max_tokens":
-            raise RuntimeError("Claude's answer was cut off (max_tokens)")
-        text = next((b.text for b in response.content if b.type == "text"), "")
-        allowed = {s["symbol"].upper() for s in data.get("setups", [])}
-        return parse_result(text, allowed)
-
-
 class RuleChief:
     """Offline stand-in for demo mode: proposes clean setups that big money isn't selling into."""
 
     async def review(self, data: dict[str, Any], min_rr: float, mode: str) -> ChiefResult:
-        flows = {f["symbol"]: f for f in data.get("whale_flow", [])}
         out = []
         for s in data.get("setups", []):
-            bias = flows.get(s["symbol"], {}).get("bias", "quiet")
-            good = s["reward_risk"] >= min_rr and bias != "selling"
+            st = s["setup"]
+            bias = (s.get("flow") or {}).get("bias", "quiet")
+            good = st["reward_risk"] >= min_rr and bias != "selling"
             out.append(Decision(
-                s["symbol"], "propose" if good else "pass", 3 if good else 1, s["stop"], s["target"],
-                f"Demo rule: {s['kind']} with reward/risk {s['reward_risk']}, large trades {bias}.",
+                s["symbol"], "propose" if good else "pass", 3 if good else 1, st["stop"], st["target"],
+                f"Demo rule: {st['kind']} with reward/risk {st['reward_risk']}, large trades {bias}.",
                 "Demo mode uses simulated prices; this is not a real signal.",
             ))
         return ChiefResult("Demo mode: rule-based chief, no Claude call made.", out)
