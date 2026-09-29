@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Night Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=IBM+Plex+Mono:wght@400;600&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap">
+<style>
+/* Layout: a night-shift trading floor seen from above. Pixel desks on dark oak, lamp light, a squawk box beside it. */
+:root {
+  --ink: #12100f;          /* room, after hours */
+  --oak: #2a211b;          /* floorboards */
+  --oak-line: #3a2e25;
+  --panel: #1b1715;
+  --panel-edge: #3b322b;
+  --paper: #efe6d6;        /* text under the lamp */
+  --muted: #a99a86;
+  --lamp: #f2b64a;         /* accent: desk lamp */
+  --good: #6fcf8e;
+  --bad: #ef6f5e;
+  --warn: #f2b64a;
+  --display: "Bricolage Grotesque", "Arial Narrow", system-ui, sans-serif;
+  --pixel: "Silkscreen", "Courier New", monospace;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--ink); color: var(--paper); font: 14px/1.5 var(--mono);
+  padding-inline: 16px; padding-block: 16px 40px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+a { color: var(--lamp); }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+
+/* top bar */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+h1 { font: 800 clamp(26px, 5vw, 40px)/1 var(--display); letter-spacing: -0.02em; margin: 0; }
+h1 span { color: var(--lamp); }
+.pill { font: 11px var(--pixel); letter-spacing: 0.08em; padding: 4px 8px; border: 2px solid currentColor; }
+.pill.paper { color: var(--good); }
+.pill.live { color: var(--bad); }
+.pill.dry { color: var(--warn); }
+.pill.paused { color: var(--muted); }
+.kpis { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.kpi small { display: block; font: 10px var(--pixel); letter-spacing: 0.08em; color: var(--muted); }
+.kpi b { font: 600 18px var(--mono); }
+.up { color: var(--good); } .down { color: var(--bad); }
+.ctl { background: none; color: var(--paper); border: 2px solid var(--panel-edge); padding: 6px 12px; font: 11px var(--pixel); }
+.ctl:hover { border-color: var(--lamp); color: var(--lamp); }
+
+/* ticker strip */
+.tape { overflow: hidden; border-block: 2px solid var(--panel-edge); background: #0c0b0a; white-space: nowrap; }
+.tape-inner { display: inline-flex; gap: 28px; padding: 6px 0; animation: tape 40s linear infinite; font-variant-numeric: tabular-nums; }
+.tape-inner span b { font-weight: 600; margin-right: 6px; }
+@keyframes tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* floor */
+.main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.floor {
+  position: relative; padding: 18px; min-width: 0;
+  background-color: var(--oak);
+  background-image: repeating-linear-gradient(0deg, transparent 0 30px, var(--oak-line) 30px 32px),
+                    repeating-linear-gradient(90deg, transparent 0 140px, rgba(0,0,0,.18) 140px 142px);
+  border: 2px solid var(--panel-edge);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px;
+}
+@media (max-width: 520px) {
+  .floor { padding: 10px; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bubble { font-size: 11px; min-height: 72px; }
+  .nameplate i { display: none; }
+}
+.station { position: relative; display: grid; gap: 6px; justify-items: center; min-width: 0; }
+.bubble {
+  width: 100%; min-height: 58px; background: var(--paper); color: #1d1814; padding: 6px 8px;
+  font: 12px/1.35 var(--mono); border: 2px solid #1d1814; box-shadow: 3px 3px 0 #0006; position: relative;
+  overflow-wrap: anywhere;
+}
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 10px; height: 10px; background: var(--paper);
+  border-right: 2px solid #1d1814; border-bottom: 2px solid #1d1814; transform: translateX(-50%) rotate(45deg); }
+.bubble.warn { background: #f7d9d2; }
+.bubble .sym { font-weight: 600; }
+.bubble time { display: block; font-size: 10px; color: #6c5f52; }
+.sprite { width: 160px; max-width: 100%; aspect-ratio: 80 / 56; image-rendering: pixelated; }
+.nameplate { font: 11px var(--pixel); letter-spacing: 0.08em; padding: 2px 8px; background: #0e0c0b; border: 2px solid var(--panel-edge); }
+.nameplate i { font-style: normal; color: var(--muted); }
+.station.off { opacity: 0.45; }
+
+/* side panels */
+.side { display: grid; gap: 16px; min-width: 0; }
+.panel { background: var(--panel); border: 2px solid var(--panel-edge); min-width: 0; }
+.panel h2 { font: 12px var(--pixel); letter-spacing: 0.1em; margin: 0; padding: 8px 12px; border-bottom: 2px solid var(--panel-edge);
+  display: flex; justify-content: space-between; gap: 8px; }
+.panel h2 span { color: var(--muted); }
+.panel .body { padding: 10px 12px; }
+.empty { color: var(--muted); font-size: 13px; margin: 0; }
+
+.ask { border: 2px solid var(--lamp); padding: 10px; display: grid; gap: 6px; }
+.ask + .ask { margin-top: 10px; }
+.ask h3 { margin: 0; font: 800 18px/1.1 var(--display); }
+.ask .nums { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+.ask p { margin: 0; font-size: 13px; }
+.ask .risks { color: var(--muted); font-style: italic; }
+.ask .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.ask button { border: 2px solid; padding: 6px 14px; font: 11px var(--pixel); background: none; }
+.ask .yes { color: var(--good); } .ask .no { color: var(--bad); }
+.ask .yes:hover { background: var(--good); color: var(--ink); } .ask .no:hover { background: var(--bad); color: var(--ink); }
+
+.squawk { max-height: 380px; overflow-y: auto; }
+.line { display: grid; grid-template-columns: 44px 58px minmax(0, 1fr); gap: 8px; padding: 5px 12px; border-bottom: 1px solid #2a2420;
+  font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.line time { color: var(--muted); }
+.line .desk { font-weight: 600; }
+.line.warn .desk { color: var(--bad); }
+.line .sym { color: var(--paper); font-weight: 600; }
+.line .txt { color: #d6cab8; overflow-wrap: anywhere; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tbl th { text-align: left; font: 10px var(--pixel); letter-spacing: 0.06em; color: var(--muted); padding: 4px 6px; }
+.tbl td { padding: 5px 6px; border-top: 1px solid #2a2420; }
+.tbl td.n, .tbl th.n { text-align: right; }
+.scroll-x { overflow-x: auto; }
+#spark { width: 100%; height: 90px; display: block; }
+
+.gate { max-width: 420px; margin: 12vh auto 0; display: grid; gap: 12px; }
+.gate input { background: var(--panel); border: 2px solid var(--panel-edge); color: var(--paper); padding: 10px; font: inherit; }
+.gate button { background: var(--lamp); color: var(--ink); border: 0; padding: 10px; font: 12px var(--pixel); }
+.gate .err { color: var(--bad); min-height: 1.5em; margin: 0; }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--paper); color: var(--ink);
+  padding: 8px 14px; border: 2px solid var(--ink); font-size: 13px; max-width: calc(100% - 32px); }
+.foot { color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .tape-inner { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app" hidden>
+  <header>
+    <h1>Night <span>Desk</span></h1>
+    <span id="modePill" class="pill paper">PAPER</span>
+    <span id="pausedPill" class="pill paused" hidden>PAUSED</span>
+    <div class="kpis">
+      <div class="kpi"><small>Equity</small><b id="kEquity">–</b></div>
+      <div class="kpi"><small>Today</small><b id="kToday">–</b></div>
+      <div class="kpi"><small>Claude calls</small><b id="kCalls">–</b></div>
+    </div>
+    <button class="ctl" id="pauseBtn" type="button">Pause desk</button>
+  </header>
+
+  <div class="tape" aria-label="Top movers"><div class="tape-inner" id="tape"></div></div>
+
+  <div class="main">
+    <section class="floor" id="floor" aria-label="Trading floor"></section>
+    <div class="side">
+      <section class="panel" aria-labelledby="hAsk">
+        <h2 id="hAsk">Needs your call <span id="askCount">0</span></h2>
+        <div class="body" id="asks"></div>
+      </section>
+      <section class="panel" aria-labelledby="hSq">
+        <h2 id="hSq">Squawk <span id="sqCount">0</span></h2>
+        <div class="squawk" id="squawk"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="main">
+    <section class="panel" aria-labelledby="hPos">
+      <h2 id="hPos">Open positions <span id="posCount">0</span></h2>
+      <div class="body scroll-x" id="positions"></div>
+    </section>
+    <section class="panel" aria-labelledby="hEq">
+      <h2 id="hEq">Equity, last 7 days <span id="eqRange"></span></h2>
+      <div class="body"><canvas id="spark" aria-label="Equity chart"></canvas></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="hHist">
+    <h2 id="hHist">Recent ideas <span>last 20</span></h2>
+    <div class="body scroll-x" id="history"></div>
+  </section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<form class="gate" id="gate" hidden>
+  <h1>Night <span>Desk</span></h1>
+  <label for="tok">Dashboard token (DASHBOARD_TOKEN from your .env)</label>
+  <input id="tok" type="password" autocomplete="current-password" required>
+  <button type="submit">Open the floor</button>
+  <p class="err" id="gateErr"></p>
+</form>
+
+<script>
+"use strict";
+const DESKS = [
+  { id: "SCAN",  name: "Scanner",  role: "watches every chart", shirt: "#5aa9e6", hair: "#2b1d14" },
+  { id: "HUNT",  name: "Hunter",   role: "finds setups",        shirt: "#6fcf8e", hair: "#6b3f1f" },
+  { id: "WHALE", name: "Whale",    role: "big trades",          shirt: "#b48cf2", hair: "#1a1a1a" },
+  { id: "NEWS",  name: "News",     role: "social sentiment",    shirt: "#f29e6d", hair: "#c9a26b" },
+  { id: "RISK",  name: "Risk",     role: "only says no",        shirt: "#ef6f5e", hair: "#3d2a1e" },
+  { id: "CHIEF", name: "Chief",    role: "Claude, routes notes",shirt: "#f2b64a", hair: "#efe6d6" },
+  { id: "PM",    name: "You",      role: "yes or no",           shirt: "#efe6d6", hair: "#4a3526" },
+];
+let token = "";
+try { token = localStorage.getItem("nightdesk-token") || ""; } catch (e) {}
+let state = null, frame = 0;
+const $ = (id) => document.getElementById(id);
+
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+}
+const money = (v, q) => (v == null ? "–" : v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + (q ? " " + q : ""));
+const price = (p) => p >= 100 ? p.toLocaleString("en-GB", { maximumFractionDigits: 2 }) : p >= 1 ? p.toFixed(4) : p.toFixed(6);
+const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const ago = (ts) => { const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? `${Math.round(s)}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; };
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "x-desk-token": token, ...(opts.headers || {}) } });
+  if (r.status === 401) throw new Error("auth");
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+function toast(msg) {
+  const t = el("div", { class: "toast", role: "status", text: msg });
+  document.body.append(t); setTimeout(() => t.remove(), 3500);
+}
+
+/* ---- pixel sprites: a desk, a monitor and a seated trader, drawn 1 unit = 1 pixel on an 80x56 grid ---- */
+function drawStation(cv, d, busy, tick) {
+  const g = cv.getContext("2d");
+  const W = 80, H = 56;
+  if (cv.width !== W) { cv.width = W; cv.height = H; }
+  g.clearRect(0, 0, W, H);
+  const px = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+  const bob = busy && tick % 2 ? -1 : 0;
+  // chair back
+  px(30, 18, 20, 16, "#1b1715"); px(31, 19, 18, 14, "#2c2520");
+  // trader: head, hair, eyes, body, arms
+  px(34, 8 + bob, 12, 11, "#e8b98f");
+  px(33, 6 + bob, 14, 4, d.hair); px(33, 8 + bob, 2, 4, d.hair); px(45, 8 + bob, 2, 4, d.hair);
+  px(37, 12 + bob, 2, 2, "#1d1814"); px(41, 12 + bob, 2, 2, "#1d1814");
+  px(32, 19 + bob, 16, 12, d.shirt); px(38, 19 + bob, 4, 3, "#ffffff55");
+  const armY = 24 + (busy && tick % 2 === 0 ? 1 : 0);
+  px(28, armY, 5, 8, d.shirt); px(47, armY, 5, 8, d.shirt);
+  px(28, armY + 8, 5, 3, "#e8b98f"); px(47, armY + 8, 5, 3, "#e8b98f");
+  // desk top and front
+  px(6, 34, 68, 6, "#8a6a4a"); px(6, 34, 68, 1, "#b08b63");
+  px(8, 40, 64, 14, "#5c4430"); px(10, 42, 22, 10, "#4a3626"); px(48, 42, 22, 10, "#4a3626");
+  px(20, 46, 4, 2, "#b08b63"); px(56, 46, 4, 2, "#b08b63");
+  // monitors either side, screens flicker with the desk colour when busy
+  for (const mx of [8, 58]) {
+    px(mx, 22, 14, 12, "#0d0c0b"); px(mx + 1, 23, 12, 9, busy ? d.shirt + "55" : "#1e2a2a");
+    for (let i = 0; i < 3; i++) px(mx + 2, 25 + i * 2, 4 + ((tick + i + mx) % 6), 1, busy ? d.shirt : "#3f5b5b");
+    px(mx + 6, 34, 2, 1, "#0d0c0b");
+  }
+  // keyboard and mug
+  px(33, 35, 14, 2, "#1d1814"); px(52, 31, 4, 3, "#efe6d6"); px(56, 32, 1, 1, "#efe6d6");
+}
+
+function buildFloor() {
+  const floor = $("floor"); floor.textContent = "";
+  for (const d of DESKS) {
+    const st = el("div", { class: "station", id: "st-" + d.id },
+      el("div", { class: "bubble", id: "bb-" + d.id }, el("span", { text: "…" })),
+      el("canvas", { class: "sprite", id: "cv-" + d.id, width: "80", height: "56", "aria-hidden": "true" }),
+      el("div", { class: "nameplate" }, d.name + " ", el("i", { text: "· " + d.role })));
+    floor.append(st);
+  }
+}
+
+function renderFloor() {
+  const now = Date.now() / 1000;
+  for (const d of DESKS) {
+    const note = state.desks[d.id];
+    const bb = $("bb-" + d.id);
+    const st = $("st-" + d.id);
+    st.classList.toggle("off", d.id === "NEWS" && !state.news_enabled);
+    bb.className = "bubble" + (note && note.level === "warn" ? " warn" : "");
+    bb.textContent = "";
+    if (d.id === "NEWS" && !state.news_enabled) {
+      bb.append("Off. Add LUNARCRUSH_API_KEY to switch this desk on.");
+    } else if (note) {
+      if (note.symbol) bb.append(el("span", { class: "sym", text: note.symbol + " · " }));
+      bb.append(note.text, el("time", { text: ago(note.ts) }));
+    } else {
+      bb.append("Waiting for the first round…");
+    }
+    const busy = note && now - note.ts < 20;
+    drawStation($("cv-" + d.id), d, busy, frame);
+  }
+}
+
+function renderHeader() {
+  const s = state;
+  const pill = $("modePill");
+  if (s.mode === "live") { pill.className = "pill " + (s.dry_run ? "dry" : "live"); pill.textContent = s.dry_run ? "LIVE · DRY RUN" : "LIVE · REAL MONEY"; }
+  else { pill.className = "pill paper"; pill.textContent = s.demo ? "PAPER · DEMO PRICES" : "PAPER"; }
+  $("pausedPill").hidden = !s.paused;
+  $("pauseBtn").textContent = s.paused ? "Resume desk" : "Pause desk";
+  $("kEquity").textContent = money(s.equity, s.quote);
+  const today = s.equity - s.day_start_equity;
+  const k = $("kToday"); k.textContent = (today >= 0 ? "+" : "") + money(today); k.className = today >= 0 ? "up" : "down";
+  $("kCalls").textContent = `${s.claude_calls_today}/${s.claude_max_calls}`;
+  const tape = $("tape"); tape.textContent = "";
+  const items = s.movers.length ? s.movers : [{ symbol: "Scanning…", last: 0, change_pct: 0 }];
+  for (let rep = 0; rep < 2; rep++) for (const m of items) {
+    tape.append(el("span", {}, el("b", { text: m.symbol }), m.last ? price(m.last) + " " : "",
+      m.last ? el("span", { class: m.change_pct >= 0 ? "up" : "down", text: (m.change_pct >= 0 ? "▲" : "▼") + Math.abs(m.change_pct).toFixed(2) + "%" }) : ""));
+  }
+}
+
+function renderAsks() {
+  const box = $("asks"); box.textContent = "";
+  const pending = state.proposals.filter((p) => p.status === "pending");
+  $("askCount").textContent = pending.length;
+  if (!pending.length) { box.append(el("p", { class: "empty", text: "Nothing waiting. The chief only asks when a trade needs a decision." })); return; }
+  for (const p of pending) {
+    const rr = (p.target - p.entry) / (p.entry - p.stop);
+    const yes = el("button", { class: "yes", type: "button", text: "Approve" });
+    const no = el("button", { class: "no", type: "button", text: "Reject" });
+    const act = async (verdict) => {
+      yes.disabled = no.disabled = true;
+      try { toast((await api(`/api/proposals/${p.id}/${verdict}`, { method: "POST" })).message); }
+      catch (e) { toast("That didn't go through. Check the server is running, then try again."); }
+      refresh();
+    };
+    yes.onclick = () => act("approve"); no.onclick = () => act("reject");
+    box.append(el("div", { class: "ask" },
+      el("h3", { text: `${p.symbol} · ${p.setup}` }),
+      el("div", { class: "nums", text: `entry ~${price(p.entry)} · stop ${price(p.stop)} · target ${price(p.target)} · R/R ${rr.toFixed(1)} · size ${(+p.qty).toPrecision(4)} · conviction ${p.conviction}/5` }),
+      el("p", { text: p.thesis }), el("p", { class: "risks", text: "Risk: " + p.risks }),
+      el("div", { class: "row" }, yes, no)));
+  }
+}
+
+function renderSquawk() {
+  const box = $("squawk"); box.textContent = "";
+  const colour = Object.fromEntries(DESKS.map((d) => [d.id, d.shirt]));
+  $("sqCount").textContent = state.notes.length;
+  for (const n of state.notes) {
+    const desk = el("span", { class: "desk", text: n.desk });
+    if (n.level !== "warn") desk.style.color = colour[n.desk] || "var(--muted)";
+    box.append(el("div", { class: "line" + (n.level === "warn" ? " warn" : "") },
+      el("time", { text: hhmm(n.ts) }), desk,
+      el("span", { class: "txt" }, n.symbol ? el("span", { class: "sym", text: n.symbol + " · " }) : "", n.text)));
+  }
+}
+
+function table(headers, rows) {
+  const t = el("table", { class: "tbl" });
+  t.append(el("thead", {}, el("tr", {}, ...headers.map(([h, n]) => el("th", { class: n ? "n" : "", text: h })))));
+  const b = el("tbody");
+  for (const r of rows) b.append(el("tr", {}, ...r.map(([v, cls]) => el("td", { class: cls || "", text: v }))));
+  t.append(b); return t;
+}
+
+function renderPositions() {
+  const box = $("positions"); box.textContent = "";
+  $("posCount").textContent = state.positions.length;
+  if (!state.positions.length) { box.append(el("p", { class: "empty", text: "No open positions." })); return; }
+  box.append(table([["Pair"], ["Qty", 1], ["Entry", 1], ["Now", 1], ["Stop", 1], ["Target", 1], ["P/L", 1]],
+    state.positions.map((p) => [[p.symbol], [(+p.qty).toPrecision(5), "n"], [price(p.entry), "n"], [price(p.last), "n"],
+      [price(p.stop), "n"], [price(p.target), "n"], [(p.upnl >= 0 ? "+" : "") + money(p.upnl), "n " + (p.upnl >= 0 ? "up" : "down")]])));
+}
+
+function renderHistory() {
+  const box = $("history"); box.textContent = "";
+  if (!state.proposals.length) { box.append(el("p", { class: "empty", text: "No ideas yet. The chief reviews setups every 15 minutes by default." })); return; }
+  box.append(table([["Time"], ["Pair"], ["Setup"], ["Status"], ["Note"]],
+    state.proposals.map((p) => [[hhmm(p.ts)], [p.symbol], [p.setup],
+      [p.status, p.status === "filled" ? "up" : p.status === "blocked" || p.status === "failed" ? "down" : ""], [p.status_note || p.thesis]])));
+}
+
+function renderSpark() {
+  const cv = $("spark"), g = cv.getContext("2d");
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = w * dpr; cv.height = h * dpr; g.scale(dpr, dpr); g.clearRect(0, 0, w, h);
+  const pts = state.equity_history.map((e) => e.value);
+  if (pts.length < 2) { g.fillStyle = "#a99a86"; g.font = "12px 'IBM Plex Mono', monospace"; g.fillText("Fills in as the desk runs.", 4, h / 2); $("eqRange").textContent = ""; return; }
+  const lo = Math.min(...pts), hi = Math.max(...pts), pad = (hi - lo) * 0.1 || 1;
+  const y = (v) => h - 6 - ((v - lo + pad) / (hi - lo + 2 * pad)) * (h - 12);
+  const x = (i) => (i / (pts.length - 1)) * (w - 8) + 4;
+  g.beginPath(); pts.forEach((v, i) => (i ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v))));
+  const up = pts[pts.length - 1] >= pts[0];
+  g.strokeStyle = up ? "#6fcf8e" : "#ef6f5e"; g.lineWidth = 2; g.stroke();
+  g.lineTo(x(pts.length - 1), h); g.lineTo(x(0), h); g.closePath(); g.fillStyle = up ? "#6fcf8e22" : "#ef6f5e22"; g.fill();
+  g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(x(pts.length - 1), y(pts[pts.length - 1]), 3.5, 0, 7); g.fill();
+  $("eqRange").textContent = `${money(lo)} to ${money(hi)}`;
+}
+
+function render() {
+  renderHeader(); renderFloor(); renderAsks(); renderSquawk(); renderPositions(); renderHistory(); renderSpark();
+  $("foot").textContent = `Updated ${new Date().toLocaleTimeString("en-GB")} · Telegram ${state.telegram_enabled ? "connected" : "not set up"} · cash ${money(state.cash, state.quote)}. ` +
+    (state.mode === "paper" ? "Paper account: simulated money against live prices." : "");
+}
+
+async function refresh() {
+  try { state = await api("/api/state"); render(); }
+  catch (e) {
+    if (e.message === "auth") { showGate("That token was not accepted."); return; }
+    $("foot").textContent = "Lost contact with the server. Retrying every 5 seconds.";
+  }
+}
+
+function showGate(msg) {
+  $("app").hidden = true; $("gate").hidden = false; $("gateErr").textContent = msg || ""; $("tok").focus();
+}
+$("gate").addEventListener("submit", async (ev) => {
+  ev.preventDefault(); token = $("tok").value.trim();
+  try { await api("/api/state"); try { localStorage.setItem("nightdesk-token", token); } catch (e) {} start(); }
+  catch (e) { $("gateErr").textContent = e.message === "auth" ? "That token was not accepted." : "Could not reach the server."; }
+});
+$("pauseBtn").addEventListener("click", async () => {
+  try { toast((await api(state && state.paused ? "/api/resume" : "/api/pause", { method: "POST" })).message); } catch (e) { toast("Could not change the desk state."); }
+  refresh();
+});
+
+let timers = [];
+function start() {
+  $("gate").hidden = true; $("app").hidden = false; buildFloor();
+  timers.forEach(clearInterval);
+  refresh();
+  timers = [setInterval(refresh, 5000), setInterval(() => { frame++; if (state) renderFloor(); }, 450)];
+}
+token ? start() : showGate();
+</script>
+</body>
+</html>

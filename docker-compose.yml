@@ -1,0 +1,14 @@
+services:
+  nightdesk:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DASHBOARD_HOST: 0.0.0.0
+      DB_PATH: /app/data/nightdesk.sqlite3
+    volumes:
+      - ./data:/app/data
+    # The dashboard is only published on the server itself. Reach it through an
+    # SSH tunnel (see README) rather than opening it to the internet.
+    ports:
+      - "127.0.0.1:8080:8080"
